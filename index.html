@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8" />
+  <title>React Bookmarklet Maker</title>
+  <style>
+    .col {
+      display: flex;
+      flex-direction: column;
+    }
+
+    #generate {
+      width: 200px;
+      margin-bottom: 1rem;
+    }
+  </style>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+
+<body>
+  <h1>React Bookmarklet Maker</h1>
+  <div class="col">
+    <label for="title-input">Title</label>
+    <input style="width: 200px;" type="text" id="title-input" />
+    <label hidden for="user-script-src-1">Additional Script 1</label>
+    <input hidden class="user-script-src preserve" id="user-script-src-1" />
+    <label for="jsx-input">React and JSX Input</label>
+    <textarea id="jsx-input" class="preserve" cols="80" rows="15"></textarea>
+    <button id="generate">Generate</button>
+    <label for="jsx-output">React and JSX Output</label>
+    <textarea id="jsx-output" cols="80" rows="5"></textarea>
+    <label for="whole-output">Whole Output</label>
+    <textarea id="whole-output" cols="80" rows="5"></textarea>
+    <label for="bookmarklet-output">Bookmarklet Output</label>
+    <textarea id="bookmarklet-output" cols="80" rows="5"></textarea>
+    <label hidden for="anchor-bookmarklet">Drag and Drop Link to Your Bookmarks Toolbar</label>
+    <a hidden id="anchor-bookmarklet"></a>
+  </div>
+
+  <script>
+    Array.from(document.querySelectorAll('textarea:not(.preserve), input:not(.preserve)')).forEach(el => el.value = '')
+    function escapeStr(str) {
+      const escapedStr = [
+        { regexp: /\\/gm, replacement: '\\\\' },
+        { regexp: /\`/gm, replacement: '\\`' },
+        { regexp: /\$/gm, replacement: '\\$' },
+        { regexp: /\n/gm, replacement: '\\n' },
+      ].reduce((acc, cur) => {
+        return acc.replace(cur.regexp, cur.replacement);
+      }, str);
+
+      return escapedStr;
+    }
+    const jsxInputTextArea = document.querySelector('#jsx-input')
+    const generateButton = document.querySelector('#generate')
+    const jsxOutputTextArea = document.querySelector('#jsx-output')
+    generateButton.addEventListener('click', () => {
+      const input = jsxInputTextArea.value;
+      // instructions here: https://github.com/babel/babel-standalone
+      const output = Babel.transform(input, { presets: ['react'] }).code;
+      jsxOutputTextArea.value = output
+
+      const wholeOutput = document.querySelector('#whole-output')
+      const code = `function addScript(src) {
+const s = document.createElement('script');
+s.setAttribute('src', src);
+s.setAttribute('defer', 'true');
+document.head.appendChild(s);
+return s;
+}
+
+const scriptsToWaitOnSrcs = [
+'https://unpkg.com/react@16/umd/react.production.min.js',
+'https://unpkg.com/react-dom@16/umd/react-dom.production.min.js',
+];
+function scriptLoadPromise(src) {
+return new Promise((resolve, reject) => {
+  const scriptEl = addScript(src);
+  scriptEl.addEventListener('load', () => {
+    resolve(src);
+  });
+});
+}
+
+const root = document.createElement('div');
+root.id = 'root';
+document.body.appendChild(root);
+
+scriptLoadPromise(scriptsToWaitOnSrcs[0]).then(() => scriptLoadPromise(scriptsToWaitOnSrcs[1]).then(() => {
+const userScriptSrcs = Array.from(document.querySelectorAll('.user-script-src')).map(el => el.value).filter(Boolean);
+Promise.all(userScriptSrcs.map(scriptLoadPromise)).then(() => {
+  const scriptEl = document.createElement('script');
+  const inlineCode = document.createTextNode(\`${escapeStr(output)}\`);
+  scriptEl.appendChild(inlineCode);
+  document.body.appendChild(scriptEl);
+});
+}));`
+      wholeOutput.value = code
+      const bookmarkletOutput = document.querySelector('#bookmarklet-output')
+      const bookmarkletStr = `javascript:${encodeURIComponent(`(function(){${code.trim()}})();`)}`
+      bookmarkletOutput.value = bookmarkletStr
+      const link = document.querySelector('#anchor-bookmarklet')
+      link.hidden = false
+      link.textContent = document.querySelector('#title-input').value !== '' ? document.querySelector('#title-input').value : 'Bookmarklet'
+      link.href = bookmarkletStr
+      const linkLabel = document.querySelector('[for="anchor-bookmarklet"]')
+      linkLabel.hidden = false
+    })
+  </script>
+</body>
+
+</html>
